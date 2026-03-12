@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Calculadora de Termistor NTC</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg:       #0f1117;
+    --panel:    #181c27;
+    --border:   #2a2f3e;
+    --accent:   #4fffb0;
+    --accent2:  #ff6b6b;
+    --accent3:  #ffd166;
+    --blue:     #74b9ff;
+    --text:     #e8eaf0;
+    --muted:    #6b7280;
+    --input-bg: #0f1117;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    min-height: 100vh;
+    padding: 24px;
+  }
+
+  /* ── Header ── */
+  header {
+    display: flex;
+    align-items: flex-end;
+    gap: 20px;
+    margin-bottom: 28px;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 20px;
+  }
+  .logo-badge {
+    background: var(--accent);
+    color: #000;
+    font-family: 'Space Mono', monospace;
+    font-weight: 700;
+    font-size: 11px;
+    padding: 6px 10px;
+    letter-spacing: 1px;
+    border-radius: 4px;
+  }
+  header h1 {
+    font-family: 'Space Mono', monospace;
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+  }
+  header h1 span { color: var(--accent); }
+  .subtitle { color: var(--muted); font-size: 12px; margin-top: 3px; }
+
+  /* ── Grid layout ── */
+  .grid {
+    display: grid;
+    grid-template-columns: 300px 1fr 1fr;
+    grid-template-rows: auto auto;
+    gap: 16px;
+  }
+
+  /* ── Panels ── */
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+  }
+  .panel-title {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .panel-title::before {
+    content: '';
+    display: inline-block;
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+  }
+
+  /* ── Input pairs ── */
+  .input-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+  .input-label {
+    font-size: 11px;
+    color: var(--muted);
+    margin-bottom: 4px;
+    font-family: 'Space Mono', monospace;
+  }
+  input[type="number"] {
+    width: 100%;
+    background: var(--input-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-family: 'Space Mono', monospace;
+    font-size: 13px;
+    padding: 8px 10px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  input[type="number"]:focus { border-color: var(--accent); }
+
+  .row-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--accent);
+    align-self: end;
+    padding-bottom: 9px;
+    text-align: right;
+  }
+
+  /* ── Button ── */
+  button {
+    width: 100%;
+    background: var(--accent);
+    color: #000;
+    border: none;
+    border-radius: 8px;
+    font-family: 'Space Mono', monospace;
+    font-weight: 700;
+    font-size: 13px;
+    letter-spacing: 1px;
+    padding: 12px;
+    cursor: pointer;
+    transition: opacity 0.2s, transform 0.1s;
+  }
+  button:hover  { opacity: 0.88; }
+  button:active { transform: scale(0.98); }
+
+  /* ── Coeff output ── */
+  .coeff-block {
+    margin-top: 18px;
+    background: var(--input-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 16px;
+  }
+  .coeff-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 5px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+  }
+  .coeff-row:last-child { border-bottom: none; }
+  .coeff-name {
+    font-family: 'Space Mono', monospace;
+    color: var(--accent3);
+    font-size: 12px;
+  }
+  .coeff-val {
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+    color: var(--text);
+  }
+
+  /* ── Chart panel spans full right 2 columns top row ── */
+  .chart-panel {
+    grid-column: 2;
+    grid-row: 1;
+    display: flex;
+    flex-direction: column;
+  }
+  .chart-panel2 {
+    grid-column: 3;
+    grid-row: 1;
+    display: flex;
+    flex-direction: column;
+  }
+  .chart-wrap {
+    flex: 1;
+    position: relative;
+    min-height: 380px;
+  }
+
+  /* ── Model calculator ── */
+  .calc-panel { grid-column: 1; grid-row: 2; }
+  .calc-panel-bottom { grid-column: 2 / 4; grid-row: 2; }
+  .calc-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+  .calc-row input { flex: 1; }
+  .arrow {
+    font-family: 'Space Mono', monospace;
+    color: var(--muted);
+    font-size: 16px;
+    flex-shrink: 0;
+  }
+  .calc-result {
+    flex: 1;
+    background: var(--input-bg);
+    border: 1px solid var(--accent);
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-family: 'Space Mono', monospace;
+    font-size: 13px;
+    color: var(--accent);
+    text-align: center;
+    min-width: 90px;
+  }
+  .model-tag {
+    font-size: 10px;
+    font-family: 'Space Mono', monospace;
+    color: var(--muted);
+    width: 28px;
+    text-align: right;
+    flex-shrink: 0;
+  }
+
+  /* ── Legend chips ── */
+  .legend {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-top: 12px;
+  }
+  .chip {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: var(--muted);
+  }
+  .chip-dot {
+    width: 10px; height: 3px;
+    border-radius: 2px;
+  }
+
+  /* ── Status bar ── */
+  #status {
+    font-size: 11px;
+    color: var(--muted);
+    font-family: 'Space Mono', monospace;
+    margin-top: 10px;
+    min-height: 16px;
+  }
+  #status.ok  { color: var(--accent); }
+  #status.err { color: var(--accent2); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo-badge">NTC</div>
+  <div>
+    <h1>Calculadora de <span>Termistor</span></h1>
+    <div class="subtitle">Micrometeorología · Tarea Rúbrica 1 · 2026-I &nbsp;|&nbsp; Modelos: Steinhart-Hart · β · T=A−B·ln(R)</div>
+  </div>
+</header>
+
+<div class="grid">
+
+  <!-- LEFT TOP: data input -->
+  <div class="panel">
+    <div class="panel-title">Pares Resistencia–Temperatura</div>
+
+    <div style="display:grid; grid-template-columns:18px 1fr 1fr; gap:6px 8px; align-items:end; margin-bottom:16px;">
+      <div></div>
+      <div class="input-label">R (Ω)</div>
+      <div class="input-label">T (°C)</div>
+
+      <div class="row-label">R1</div>
+      <input type="number" id="R1" value="18590" step="1">
+      <input type="number" id="T1" value="8" step="0.1">
+
+      <div class="row-label">R2</div>
+      <input type="number" id="R2" value="9150" step="1">
+      <input type="number" id="T2" value="24.1" step="0.1">
+
+      <div class="row-label">R3</div>
+      <input type="number" id="R3" value="3490" step="1">
+      <input type="number" id="T3" value="44.5" step="0.1">
+    </div>
+
+    <button onclick="calcular()">CALCULAR COEFICIENTES</button>
+    <div id="status"></div>
+
+    <div class="coeff-block">
+      <div class="panel-title" style="margin-bottom:8px;">Ec.(1): R = A · e<sup>B·T</sup> <span style="color:var(--muted);font-size:9px;">[T en °C]</span></div>
+      <div class="coeff-row">
+        <span class="coeff-name">A =</span>
+        <span class="coeff-val" id="c1A">—</span>
+        <span style="font-size:10px;color:var(--muted)"> Ω</span>
+      </div>
+      <div class="coeff-row">
+        <span class="coeff-name">B =</span>
+        <span class="coeff-val" id="c1B">—</span>
+        <span style="font-size:10px;color:var(--muted)"> 1/°C</span>
+      </div>
+
+      <div class="panel-title" style="margin-bottom:8px;margin-top:12px;">Ec.(2): R<sub>t</sub> = A · e<sup>B/T</sup> <span style="color:var(--muted);font-size:9px;">[T en K]</span></div>
+      <div class="coeff-row">
+        <span class="coeff-name">A =</span>
+        <span class="coeff-val" id="c2A">—</span>
+        <span style="font-size:10px;color:var(--muted)"> Ω</span>
+      </div>
+      <div class="coeff-row">
+        <span class="coeff-name">B =</span>
+        <span class="coeff-val" id="c2B">—</span>
+        <span style="font-size:10px;color:var(--muted)"> K</span>
+      </div>
+
+      <div class="panel-title" style="margin-bottom:8px;margin-top:12px;">Ec.(3): Steinhart-Hart <span style="color:var(--muted);font-size:9px;">[1/T = A+B·lnR+C·(lnR)³]</span></div>
+      <div class="coeff-row">
+        <span class="coeff-name">A =</span>
+        <span class="coeff-val" id="cA">—</span>
+      </div>
+      <div class="coeff-row">
+        <span class="coeff-name">B =</span>
+        <span class="coeff-val" id="cB">—</span>
+      </div>
+      <div class="coeff-row">
+        <span class="coeff-name">C =</span>
+        <span class="coeff-val" id="cC">—</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- CHART 1: R vs T (right col 2) -->
+  <div class="panel chart-panel">
+    <div class="panel-title">Gráfica 1 — Resistencia vs Temperatura</div>
+    <div class="chart-wrap">
+      <canvas id="myChart"></canvas>
+    </div>
+    <div class="legend">
+      <div class="chip"><div class="chip-dot" style="background:#ffd166;"></div>Ec.(1) R=A·e^(BT)</div>
+      <div class="chip"><div class="chip-dot" style="background:#a29bfe;"></div>Ec.(2) Rt=A·e^(B/T)</div>
+      <div class="chip"><div class="chip-dot" style="background:#74b9ff;"></div>Ec.(3) Steinhart-Hart</div>
+      <div class="chip"><div class="chip-dot" style="background:#ff6b6b;width:8px;height:8px;border-radius:50%;"></div>Datos</div>
+    </div>
+  </div>
+
+  <!-- CHART 2: T vs ln(R) — linearization (right col 3) -->
+  <div class="panel chart-panel2">
+    <div class="panel-title">Gráfica 2 — Linealización: T vs ln(R)</div>
+    <div class="chart-wrap">
+      <canvas id="myChart2"></canvas>
+    </div>
+    <div class="legend">
+      <div class="chip"><div class="chip-dot" style="background:#ffd166;"></div>Ec.(1) linealizada</div>
+      <div class="chip"><div class="chip-dot" style="background:#a29bfe;"></div>Ec.(2) linealizada</div>
+      <div class="chip"><div class="chip-dot" style="background:#74b9ff;"></div>Ec.(3) S-H linealizada</div>
+      <div class="chip"><div class="chip-dot" style="background:#ff6b6b;width:8px;height:8px;border-radius:50%;"></div>Datos</div>
+    </div>
+  </div>
+
+  <!-- LEFT BOTTOM: model calculator -->
+  <div class="panel calc-panel">
+    <div class="panel-title">Calculadora de Temperatura (Termómetro)</div>
+
+    <div style="display:grid; grid-template-columns:1fr 24px 1fr 60px; gap:6px; align-items:center; margin-bottom:6px;">
+      <div class="input-label">R (Ω)</div>
+      <div></div>
+      <div class="input-label">T (°C)</div>
+      <div></div>
+    </div>
+
+    <!-- Ec1 -->
+    <div class="calc-row">
+      <input type="number" id="calcR_e1" placeholder="Ingresa R" oninput="calcFromR_all()" step="1">
+      <span class="arrow">↔</span>
+      <div class="calc-result" id="calcT_e1">—</div>
+      <span class="model-tag" style="color:#ffd166;width:38px;">Ec.(1)</span>
+    </div>
+
+    <!-- Ec2 -->
+    <div class="calc-row">
+      <input type="number" id="calcR_e2" placeholder="Ingresa R" oninput="calcFromR_all()" step="1">
+      <span class="arrow">↔</span>
+      <div class="calc-result" id="calcT_e2">—</div>
+      <span class="model-tag" style="color:#74b9ff;width:38px;">Ec.(2)</span>
+    </div>
+
+    <!-- Ec3 S-H -->
+    <div class="calc-row">
+      <input type="number" id="calcR_e3" placeholder="Ingresa R" oninput="calcFromR_all()" step="1">
+      <span class="arrow">↔</span>
+      <div class="calc-result" id="calcT_e3">—</div>
+      <span class="model-tag" style="color:#4fffb0;width:38px;">Ec.(3)</span>
+    </div>
+
+    <div style="font-size:10px;color:var(--muted);font-family:'Space Mono',monospace;margin-top:4px;">
+      Puedes ingresar la misma R en los 3 campos para comparar modelos.
+    </div>
+  </div>
+
+</div><!-- /grid -->
+
+<script>
+// ── Pre-loaded Table 3 data (for Ec.4 background curve) ──────────────────────
+const T3 = [6.3,8,10,12,14,16.1,17.8,19.1,20.5,21,22,23.2,24.1,25.6,26.9,27,
+            28.9,30,31,32,33.5,34.9,35.9,37.3,38.9,40.2,42.1,43.4,44.5,46,48,50];
+const R3 = [19550,18590,16860,14750,13860,12330,11990,11400,10610,10400,9770,9360,
+            9150,8410,8240,7780,7380,6740,6650,6450,5960,5440,5400,4960,4360,4070,
+            3720,3560,3490,3330,3220,2900];
+
+// Ec.4 coefficients (statistical, from Table 3)
+const A4 = 225.6308, B4 = 22.1543;
+
+// ── State ─────────────────────────────────────────────────────────────────────
+let shA=null, shB=null, shC=null;
+let ec1A=null, ec1B=null;
+let ec2A=null, ec2B=null;
+let chart = null, chart2 = null;
+
+// ── Math helpers ──────────────────────────────────────────────────────────────
+function shTemp(R, A, B, C) {
+  const lR = Math.log(R);
+  return 1.0 / (A + B*lR + C*lR*lR*lR) - 273.15;
+}
+function ec1Temp(R, A, B) {
+  // R = A·e^(B·T)  →  T = ln(R/A) / B
+  return Math.log(R / A) / B;
+}
+function ec2Temp(R, A, B) {
+  // Rt = A·e^(B/T)  →  T(K) = B / ln(R/A)  →  T(°C) = T(K) - 273.15
+  return B / Math.log(R / A) - 273.15;
+}
+function ec4Temp(R) {
+  return A4 - B4 * Math.log(R);
+}
+
+// ── Steinhart-Hart solver (analytic) ─────────────────────────────────────────
+function solveSH(T1c, R1, T2c, R2, T3c, R3) {
+  const TK = [T1c+273.15, T2c+273.15, T3c+273.15];
+  const Y  = TK.map(t => 1/t);
+  const L  = [R1,R2,R3].map(r => Math.log(r));
+  const X2 = (Y[1]-Y[0]) / (L[1]-L[0]);
+  const X3 = (Y[2]-Y[0]) / (L[2]-L[0]);
+  const C  = ((X3-X2)/(L[2]-L[1])) / (L[0]+L[1]+L[2]);
+  const B  = X2 - C*(L[0]**2 + L[0]*L[1] + L[1]**2);
+  const A  = Y[0] - (B + L[0]**2*C)*L[0];
+  return {A, B, C};
+}
+
+// ── Ec.(1) solver: R = A·e^(BT) [T en °C], uses R1/T1 and R2/T2 ─────────────
+function solveEc1(T1c, R1, T2c, R2) {
+  const B = (Math.log(R1) - Math.log(R2)) / (T1c - T2c);
+  const A = R1 * Math.exp(-B * T1c);
+  return {A, B};
+}
+
+// ── Ec.(2) solver: Rt = A·e^(B/T) [T en K], uses R1/T1 and R2/T2 ────────────
+function solveEc2(T1c, R1, T2c, R2) {
+  const T1K = T1c + 273.15, T2K = T2c + 273.15;
+  const B = (Math.log(R1) - Math.log(R2)) / (1/T1K - 1/T2K);
+  const A = R1 * Math.exp(-B / T1K);
+  return {A, B};
+}
+
+// ── Format helpers ────────────────────────────────────────────────────────────
+function fmtSci(v) {
+  if (v === null) return '—';
+  const e = Math.floor(Math.log10(Math.abs(v)));
+  const m = v / Math.pow(10, e);
+  return `${m.toFixed(7)} e${e>=0?'+':''}${e}`;
+}
+
+// ── Main calculation ──────────────────────────────────────────────────────────
+function calcular() {
+  const R1=+document.getElementById('R1').value, T1=+document.getElementById('T1').value;
+  const R2=+document.getElementById('R2').value, T2=+document.getElementById('T2').value;
+  const R3v=+document.getElementById('R3').value, T3v=+document.getElementById('T3').value;
+
+  if (!R1||!R2||!R3v||isNaN(T1)||isNaN(T2)||isNaN(T3v)) {
+    setStatus('Ingresa los 6 valores correctamente.', 'err'); return;
+  }
+
+  try {
+    // Ec.(1) and Ec.(2) use only R1/T1 and R2/T2
+    const e1 = solveEc1(T1,R1,T2,R2);
+    ec1A=e1.A; ec1B=e1.B;
+    const e2 = solveEc2(T1,R1,T2,R2);
+    ec2A=e2.A; ec2B=e2.B;
+    // Ec.(3) S-H uses all 3 points
+    const sh = solveSH(T1,R1,T2,R2,T3v,R3v);
+    shA=sh.A; shB=sh.B; shC=sh.C;
+
+    // Show Ec.(1) coefficients
+    document.getElementById('c1A').textContent = ec1A.toFixed(6);
+    document.getElementById('c1B').textContent = ec1B.toFixed(6);
+    // Show Ec.(2) coefficients
+    document.getElementById('c2A').textContent = fmtSci(ec2A);
+    document.getElementById('c2B').textContent = ec2B.toFixed(2);
+    // Show Ec.(3) S-H coefficients
+    document.getElementById('cA').textContent  = fmtSci(shA);
+    document.getElementById('cB').textContent  = fmtSci(shB);
+    document.getElementById('cC').textContent  = fmtSci(shC);
+
+    setStatus('✓ Coeficientes calculados correctamente.', 'ok');
+    updateChart(R1,T1,R2,T2,R3v,T3v);
+  } catch(e) {
+    setStatus('Error en el cálculo. Revisa los datos.', 'err');
+  }
+}
+
+function setStatus(msg, cls) {
+  const el = document.getElementById('status');
+  el.textContent = msg;
+  el.className = cls;
+}
+
+// ── Live calculators ──────────────────────────────────────────────────────────
+function calcFromR_all() {
+  const R1 = +document.getElementById('calcR_e1').value;
+  const R2 = +document.getElementById('calcR_e2').value;
+  const R3 = +document.getElementById('calcR_e3').value;
+
+  document.getElementById('calcT_e1').textContent =
+    (ec1A && R1 > 0) ? ec1Temp(R1, ec1A, ec1B).toFixed(3) + ' °C' : '—';
+  document.getElementById('calcT_e2').textContent =
+    (ec2A && R2 > 0) ? ec2Temp(R2, ec2A, ec2B).toFixed(3) + ' °C' : '—';
+  document.getElementById('calcT_e3').textContent =
+    (shA  && R3 > 0) ? shTemp(R3, shA, shB, shC).toFixed(3) + ' °C' : '—';
+}
+
+// ── Charts ────────────────────────────────────────────────────────────────────
+function updateChart(R1,T1,R2,T2,R3,T3) {
+  const Rmin = Math.min(R1,R2,R3)*0.6, Rmax = Math.max(R1,R2,R3)*1.5;
+  const Rarr = Array.from({length:300}, (_,i) => Rmin + i*(Rmax-Rmin)/299);
+
+  // ── CHART 1: R vs T ────────────────────────────────────────────────────────
+  const shPts  = Rarr.map(r => ({x: shTemp(r,shA,shB,shC),  y: r}));
+  const ec1Pts = Rarr.map(r => ({x: ec1Temp(r,ec1A,ec1B),   y: r}));
+  const ec2Pts = Rarr.map(r => ({x: ec2Temp(r,ec2A,ec2B),   y: r}));
+  const ec4Pts = Rarr.map(r => ({x: ec4Temp(r),             y: r}));
+  const dataPts = [{x:T1,y:R1},{x:T2,y:R2},{x:T3,y:R3}];
+
+  const axisStyle = {
+    grid:  { color:'rgba(255,255,255,0.06)' },
+    ticks: { color:'#6b7280', font:{family:'Space Mono', size:10} }
+  };
+
+  if (chart) chart.destroy();
+  chart = new Chart(document.getElementById('myChart').getContext('2d'), {
+    type: 'line',
+    data: { datasets: [
+      { label:'Ec.(1)', data:ec1Pts, borderColor:'#ffd166', borderWidth:2.5, pointRadius:0, fill:false, tension:0.4 },
+      { label:'Ec.(2)', data:ec2Pts, borderColor:'#a29bfe', borderWidth:2.5, pointRadius:0, fill:false, tension:0.4 },
+      { label:'Ec.(3) S-H', data:shPts, borderColor:'#74b9ff', borderWidth:2.5, pointRadius:0, fill:false, tension:0.4 },
+      { label:'Datos', data:dataPts, borderColor:'#ff6b6b', backgroundColor:'#ff6b6b', pointRadius:7, pointHoverRadius:9, showLine:false, type:'scatter' },
+    ]},
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      animation:{ duration:600, easing:'easeInOutQuart' },
+      scales: {
+        x: { type:'linear', title:{display:true, text:'Temperatura (°C)', color:'#6b7280', font:{family:'DM Sans',size:11}}, ...axisStyle },
+        y: { title:{display:true, text:'Resistencia (Ω)', color:'#6b7280', font:{family:'DM Sans',size:11}}, ...axisStyle }
+      },
+      plugins: {
+        legend:{ display:false },
+        tooltip:{ backgroundColor:'#181c27', borderColor:'#2a2f3e', borderWidth:1,
+          callbacks:{ label: c => ` ${c.dataset.label}: T=${c.parsed.x.toFixed(2)}°C  R=${c.parsed.y.toFixed(0)}Ω` }
+        }
+      }
+    }
+  });
+
+  // ── CHART 2: T vs ln(R) — linealización ───────────────────────────────────
+  // Ec.(1): R = A·e^(BT)  →  ln(R) = ln(A) + B·T  →  T = (ln(R) - ln(A)) / B
+  // En espacio T vs ln(R), esto es una LÍNEA RECTA: T = A4 - B4·ln(R) [Ec.(4)]
+  const lnRarr = Rarr.map(r => Math.log(r));
+  const lnRmin = Math.min(...lnRarr), lnRmax = Math.max(...lnRarr);
+  const lnRline = Array.from({length:200}, (_,i) => lnRmin + i*(lnRmax-lnRmin)/199);
+
+  // Ec.(1) linealizada = Ec.(4): recta perfecta T = A - B·ln(R)
+  const ec1LinLin = lnRline.map(lr => ({x: lr, y: A4 - B4*lr}));
+
+  // Ec.(2) y Ec.(3) en espacio ln(R) vs T — siguen siendo curvas
+  const ec2Line = Rarr.map(r => ({x: Math.log(r), y: ec2Temp(r,ec2A,ec2B)}));
+  const shLine  = Rarr.map(r => ({x: Math.log(r), y: shTemp(r,shA,shB,shC)}));
+
+  // Datos reales en espacio ln(R) vs T
+  const dataLn = [
+    {x:Math.log(R1), y:T1},
+    {x:Math.log(R2), y:T2},
+    {x:Math.log(R3), y:T3}
+  ];
+
+  if (chart2) chart2.destroy();
+  chart2 = new Chart(document.getElementById('myChart2').getContext('2d'), {
+    type: 'line',
+    data: { datasets: [
+      { label:'Ec.(1) linealizada', data:ec1LinLin, borderColor:'#ffd166', borderWidth:3.5, pointRadius:0, fill:false, tension:0 },
+      { label:'Ec.(2) linealizada',     data:ec2Line, borderColor:'#a29bfe', borderWidth:2, pointRadius:0, fill:false, tension:0.2 },
+      { label:'Ec.(3) S-H linealizada', data:shLine,  borderColor:'#74b9ff', borderWidth:2, pointRadius:0, fill:false, tension:0.2 },
+      { label:'Datos', data:dataLn, borderColor:'#ff6b6b', backgroundColor:'#ff6b6b', pointRadius:7, pointHoverRadius:9, showLine:false, type:'scatter' },
+    ]},
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      animation:{ duration:600, easing:'easeInOutQuart' },
+      scales: {
+        x: { type:'linear',
+          title:{display:true, text:'ln(R)  — escala logarítmica de R', color:'#6b7280', font:{family:'DM Sans',size:11}},
+          ...axisStyle },
+        y: { title:{display:true, text:'Temperatura (°C)', color:'#6b7280', font:{family:'DM Sans',size:11}},
+          ...axisStyle }
+      },
+      plugins: {
+        legend:{ display:false },
+        tooltip:{ backgroundColor:'#181c27', borderColor:'#2a2f3e', borderWidth:1,
+          callbacks:{ label: c => ` ${c.dataset.label}: ln(R)=${c.parsed.x.toFixed(3)}  T=${c.parsed.y.toFixed(2)}°C` }
+        }
+      }
+    }
+  });
+}
+
+// ── Auto-run on load ──────────────────────────────────────────────────────────
+window.addEventListener('load', () => calcular());
+</script>
+</body>
+</html>
