@@ -87,10 +87,10 @@
     flex: 1;
   }
 
-  /* ── Right column: 2 charts top, calculator bottom ── */
+  /* ── Right column: 1 chart top, calculator bottom ── */
   .right-col {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr;
     grid-template-rows: 1fr auto;
     gap: 10px;
     min-height: 0;
@@ -231,7 +231,7 @@
 
   /* ── Calculator (bottom row spans both chart cols) ── */
   .calc-panel {
-    grid-column: 1 / 3;
+    grid-column: 1;
     flex-direction: row;
     gap: 16px;
     align-items: center;
@@ -397,20 +397,6 @@
         </div>
       </div>
 
-      <!-- Chart 2 -->
-      <div class="panel chart-panel">
-        <div class="panel-title">Gráfica 2 — Linealización: T vs ln(R)</div>
-        <div class="chart-wrap">
-          <canvas id="myChart2"></canvas>
-        </div>
-        <div class="legend">
-          <div class="chip"><div class="chip-dot" style="background:#ffd166;"></div>Ec.(1) linealizada</div>
-          <div class="chip"><div class="chip-dot" style="background:#a29bfe;"></div>Ec.(2) linealizada</div>
-          <div class="chip"><div class="chip-dot" style="background:#74b9ff;"></div>Ec.(3) linealizada</div>
-          <div class="chip"><div class="chip-dot" style="background:#ff6b6b;width:7px;height:7px;border-radius:50%;"></div>Datos</div>
-        </div>
-      </div>
-
       <!-- Calculator -->
       <div class="panel calc-panel">
         <div class="panel-title">Termómetro</div>
@@ -433,6 +419,12 @@
             <div class="calc-result" id="calcT_e3">—</div>
             <span class="model-tag" style="color:#74b9ff;">Ec.(3)</span>
           </div>
+          <div class="calc-row">
+            <input type="number" id="calcR_e4" placeholder="R (Ω)" oninput="calcFromR_all()" step="1">
+            <span class="arrow">↔</span>
+            <div class="calc-result" id="calcT_e4">—</div>
+            <span class="model-tag" style="color:#55efc4;">Ec.(4)</span>
+          </div>
         </div>
       </div>
 
@@ -442,6 +434,8 @@
 </div><!-- /page -->
 
 <script>
+// ── Coeficientes Ec.(4) fijos desde Python corregido ──────────────────
+// T = A4 - B4·ln(R)   [regresión sobre Tabla 3]
 const A4 = 225.6308, B4 = 22.1543;
 
 let shA=null, shB=null, shC=null;
@@ -449,32 +443,53 @@ let ec1A=null, ec1B=null;
 let ec2A=null, ec2B=null;
 let chart=null, chart2=null;
 
+// ── Funciones de temperatura ──────────────────────────────────────────
 function shTemp(R,A,B,C)  { const l=Math.log(R); return 1/(A+B*l+C*l*l*l)-273.15; }
-function ec1Temp(R,A,B)   { return Math.log(R/A)/B; }
-function ec2Temp(R,A,B)   { return B/Math.log(R/A)-273.15; }
-function ec4Temp(R)        { return A4-B4*Math.log(R); }
+function ec1Temp(R,A,B)   { return Math.log(R/A)/B; }             // T = ln(R/A)/B  [°C]
+function ec2Temp(R,A,B)   { return B/Math.log(R/A)-273.15; }      // T = B/ln(R/A) - 273.15
+function ec4Temp(R)        { return A4 - B4*Math.log(R); }        // T = A - B·ln(R)
 
+// ── Steinhart-Hart CORREGIDO ──────────────────────────────────────────
+// Método algebraico exacto con 3 puntos (igual al Python corregido)
 function solveSH(T1c,R1,T2c,R2,T3c,R3) {
-  const TK=[T1c+273.15,T2c+273.15,T3c+273.15];
-  const Y=TK.map(t=>1/t), L=[R1,R2,R3].map(r=>Math.log(r));
-  const X2=(Y[1]-Y[0])/(L[1]-L[0]), X3=(Y[2]-Y[0])/(L[2]-L[0]);
-  const C=((X3-X2)/(L[2]-L[1]))/(L[0]+L[1]+L[2]);
-  const B=X2-C*(L[0]**2+L[0]*L[1]+L[1]**2);
-  const A=Y[0]-(B+L[0]**2*C)*L[0];
+  const Y1=1/(T1c+273.15), Y2=1/(T2c+273.15), Y3=1/(T3c+273.15);
+  const L1=Math.log(R1),   L2=Math.log(R2),   L3=Math.log(R3);
+
+  // Variables auxiliares X2 y X3
+  const X2 = (Y2-Y1)/(L2-L1);
+  const X3 = (Y3-Y1)/(L3-L1);
+
+  // Constante C  → denominador correcto: (L3-L2)*(L3+L2+L1)
+  const C = (X3-X2) / ((L3-L2)*(L3+L2+L1));
+
+  // Constante B
+  const B = X2 - C*(L1*L1 + L1*L2 + L2*L2);
+
+  // Constante A
+  const A = Y1 - (B + L1*L1*C)*L1;
+
   return {A,B,C};
 }
+
+// ── Ec.(1): R = A·e^(B·T)  [T en °C, 2 puntos] ───────────────────────
 function solveEc1(T1c,R1,T2c,R2) {
-  const B=(Math.log(R1)-Math.log(R2))/(T1c-T2c);
-  return {A:R1*Math.exp(-B*T1c), B};
+  const B = (Math.log(R1)-Math.log(R2))/(T1c-T2c);
+  const A = R1*Math.exp(-B*T1c);
+  return {A, B};
 }
+
+// ── Ec.(2): R = A·e^(B/T)  [T en Kelvin, 2 puntos] ───────────────────
 function solveEc2(T1c,R1,T2c,R2) {
   const T1K=T1c+273.15, T2K=T2c+273.15;
-  const B=(Math.log(R1)-Math.log(R2))/(1/T1K-1/T2K);
-  return {A:R1*Math.exp(-B/T1K), B};
+  const B = (Math.log(R1)-Math.log(R2))/(1/T1K-1/T2K);
+  const A = R1*Math.exp(-B/T1K);
+  return {A, B};
 }
+
 function fmtSci(v) {
+  if(v===0) return '0';
   const e=Math.floor(Math.log10(Math.abs(v)));
-  return `${(v/Math.pow(10,e)).toFixed(6)}e${e>=0?'+':''}${e}`;
+  return `${(v/Math.pow(10,e)).toFixed(6)}e${e>=0?'+':''}${String(e).padStart(2,'0')}`;
 }
 
 function calcular() {
@@ -497,7 +512,8 @@ function calcular() {
 
     setStatus('✓ Coeficientes calculados.','ok');
     updateCharts(R1,T1,R2,T2,R3,T3);
-  } catch(e) { setStatus('Error. Revisa los datos.','err'); }
+    calcFromR_all();
+  } catch(e) { setStatus('Error. Revisa los datos.','err'); console.error(e); }
 }
 
 function setStatus(msg,cls) {
@@ -509,9 +525,11 @@ function calcFromR_all() {
   const R1=+document.getElementById('calcR_e1').value;
   const R2=+document.getElementById('calcR_e2').value;
   const R3=+document.getElementById('calcR_e3').value;
+  const R4=+document.getElementById('calcR_e4').value;
   document.getElementById('calcT_e1').textContent = (ec1A&&R1>0) ? ec1Temp(R1,ec1A,ec1B).toFixed(3)+' °C' : '—';
   document.getElementById('calcT_e2').textContent = (ec2A&&R2>0) ? ec2Temp(R2,ec2A,ec2B).toFixed(3)+' °C' : '—';
   document.getElementById('calcT_e3').textContent = (shA &&R3>0) ? shTemp(R3,shA,shB,shC).toFixed(3)+' °C' : '—';
+  document.getElementById('calcT_e4').textContent = (R4>0)       ? ec4Temp(R4).toFixed(3)+' °C'           : '—';
 }
 
 function updateCharts(R1,T1,R2,T2,R3,T3) {
@@ -530,9 +548,9 @@ function updateCharts(R1,T1,R2,T2,R3,T3) {
 
   // ── Chart 1: R vs T ──────────────────────────────────────────────────────
   const c1data = {datasets:[
-    {label:'Ec.(1)', data:Rarr.map(r=>({x:ec1Temp(r,ec1A,ec1B),y:r})), borderColor:'#ffd166', borderWidth:2.5, pointRadius:0, fill:false, tension:0.4},
-    {label:'Ec.(2)', data:Rarr.map(r=>({x:ec2Temp(r,ec2A,ec2B),y:r})), borderColor:'#a29bfe', borderWidth:2.5, pointRadius:0, fill:false, tension:0.4},
-    {label:'Ec.(3)', data:Rarr.map(r=>({x:shTemp(r,shA,shB,shC), y:r})), borderColor:'#74b9ff', borderWidth:2.5, pointRadius:0, fill:false, tension:0.4},
+    {label:'Ec.(1)', data:Rarr.map(r=>({x:ec1Temp(r,ec1A,ec1B),y:r})),  borderColor:'#ffd166', borderWidth:2.5, pointRadius:0, fill:false, tension:0.4},
+    {label:'Ec.(2)', data:Rarr.map(r=>({x:ec2Temp(r,ec2A,ec2B),y:r})),  borderColor:'#a29bfe', borderWidth:2.5, pointRadius:0, fill:false, tension:0.4},
+    {label:'Ec.(3)', data:Rarr.map(r=>({x:shTemp(r,shA,shB,shC), y:r})),  borderColor:'#74b9ff', borderWidth:2.5, pointRadius:0, fill:false, tension:0.4},
     {label:'Datos',  data:[{x:T1,y:R1},{x:T2,y:R2},{x:T3,y:R3}], borderColor:'#ff6b6b', backgroundColor:'#ff6b6b', pointRadius:6, showLine:false, type:'scatter'},
   ]};
   if(chart) chart.destroy();
@@ -544,24 +562,7 @@ function updateCharts(R1,T1,R2,T2,R3,T3) {
       plugins:{legend:{display:false},tooltip:tooltipOpts(c=>` ${c.dataset.label}: T=${c.parsed.x.toFixed(2)}°C  R=${c.parsed.y.toFixed(0)}Ω`)}}
   });
 
-  // ── Chart 2: T vs ln(R) ──────────────────────────────────────────────────
-  const lnRmin=Math.log(Rmin), lnRmax=Math.log(Rmax);
-  const lnLine=Array.from({length:200},(_,i)=>lnRmin+i*(lnRmax-lnRmin)/199);
-
-  const c2data = {datasets:[
-    {label:'Ec.(1) linealizada', data:lnLine.map(lr=>({x:lr,y:A4-B4*lr})),                            borderColor:'#ffd166', borderWidth:3,   pointRadius:0, fill:false, tension:0},
-    {label:'Ec.(2) linealizada', data:Rarr.map(r=>({x:Math.log(r),y:ec2Temp(r,ec2A,ec2B)})),          borderColor:'#a29bfe', borderWidth:2,   pointRadius:0, fill:false, tension:0.2},
-    {label:'Ec.(3) linealizada', data:Rarr.map(r=>({x:Math.log(r),y:shTemp(r,shA,shB,shC)})),         borderColor:'#74b9ff', borderWidth:2,   pointRadius:0, fill:false, tension:0.2},
-    {label:'Datos',              data:[{x:Math.log(R1),y:T1},{x:Math.log(R2),y:T2},{x:Math.log(R3),y:T3}], borderColor:'#ff6b6b', backgroundColor:'#ff6b6b', pointRadius:6, showLine:false, type:'scatter'},
-  ]};
-  if(chart2) chart2.destroy();
-  chart2=new Chart(document.getElementById('myChart2').getContext('2d'),{
-    type:'line', data:c2data,
-    options:{responsive:true,maintainAspectRatio:false,animation:{duration:500},
-      scales:{x:{type:'linear',title:titleStyle('ln(R)'),...axOpts},
-              y:{title:titleStyle('Temperatura (°C)'),...axOpts}},
-      plugins:{legend:{display:false},tooltip:tooltipOpts(c=>` ${c.dataset.label}: ln(R)=${c.parsed.x.toFixed(3)}  T=${c.parsed.y.toFixed(2)}°C`)}}
-  });
+  // (Gráfica de linealización eliminada)
 }
 
 window.addEventListener('load', () => calcular());
